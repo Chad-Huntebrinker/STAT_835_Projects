@@ -1,0 +1,23 @@
+#Chad Huntebrinker
+#Problem 1.17
+library(ggplot2)
+
+# Parameters for Beta distribution (prior)
+alpha <- 0.5
+beta <- 0.5
+
+# Calculate the Post alpha star and beta star that is used in the bayes estimator
+alpha_star <- alpha + 0
+beta_star <- beta + 25 - 0
+
+#1 Bayes Estimator (mean of the Beta posterior)
+bayes_estimator <- alpha_star / (alpha_star + beta_star)
+cat("Bayes Estimator:", bayes_estimator, "\n")
+
+#2 95% credible interval
+posterior_interval <- qbeta(c(0.025, 0.975), alpha_star, beta_star)
+cat("95% Credible Interval:", posterior_interval, "\n")
+
+#3 Posterior probability P(pi < 0.5)
+probability_less_than_0_5 <- pbeta(0.5, alpha_star, beta_star)
+cat("Posterior Probability P(pi < 0.5):", probability_less_than_0_5, "\n")
