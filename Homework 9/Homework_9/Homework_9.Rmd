@@ -1,0 +1,236 @@
+---
+title: "Chad Huntebrinker's Homework 9"
+author: "Chad Huntebrinker"
+date: "2025-04-07"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+shuttle_data <- data.frame(
+  Ft = 1:23,
+  Temp = c(66, 70, 69, 68, 67, 72, 73, 70, 57, 63, 70, 78, 67, 53, 67, 
+           75, 70, 81, 76, 79, 75, 76, 58),
+  TD = c(0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 
+         0, 0, 0, 0, 0, 1, 0, 1)
+)
+logit_model <- glm(TD ~ Temp, data = shuttle_data, family = binomial)
+summary(logit_model)
+
+library(arm)
+library(readxl)
+crabs <- read_excel("crab_data.xlsx")
+```
+
+
+# Problem 1
+We need to use a logistic model to find the effect of temperature and interpret the effect.
+
+## Part a
+We will find a logistic regression model to find the effect temperature has on the distress of the O-rings.
+```{r echo=FALSE}
+coef(logit_model)
+summary(logit_model)
+
+#Temp coefficient is -0.2322. That means a one-degree increase in Temp decreases the logit by
+#0.2322. Since p = 0.0320 < 0.05, Temp has a significant effect on our model.
+```
+Temp coefficient is -0.2322. That means a one-degree increase in temperature decreases the logit by 0.2322. Since p = 0.0320 < 0.05, temperature has a significant effect on our model.
+
+
+## Part b
+Now, we need to estimate the probability of thermal distress at 31 degrees.
+```{r echo=FALSE}
+new_data <- data.frame(Temp = 31)
+prob_31 <- predict(logit_model, newdata = new_data, type = "response")
+cat("Estimated probability of distress at 31 degrees F:", prob_31)
+```
+So, according to the estimated probability, there was a high likelihood of one of the O-rings failing.
+
+## Part c
+At what temperature does the estimated probability equal 0.50? And give linear approximation for the change in the estimated probability per degree increase in temperature.
+```{r echo=FALSE}
+#c)
+logit_function <- function(temp) {
+  coef(logit_model)[1] + coef(logit_model)[2] * temp
+}
+
+temp_50 <- uniroot(function(temp) logit_function(temp) - log(0.5 / (1 - 0.5)), lower = 0, upper = 100)$root
+print(paste("Temperature at 0.5:", temp_50))
+
+#Compute linear approximation for change in probability per degree
+#B * p * (1 - p)
+slope_at_temp_50 <- coef(logit_model)[2] * (0.5 * (1 - 0.5))
+print(paste("Approximate change in probability per degree at", temp_50, " degrees F:", slope_at_temp_50))
+```
+We find that the estimated probability of thermal distress is 0.5 at about 64.79 degrees F. And at 64.79 degrees F, the probability decreases by about 5.8 percent per 1 degree increase in temperature.
+
+## Part d
+```{r echo=FALSE}
+odds_multiplier <- exp(coef(logit_model)[2])
+print(paste("Odds multiplier per degree increase in temperature:", odds_multiplier))
+#For every 1 degree increase in temperature, the odds of thermal distress are multiplied by about 0.793.
+#In other words, they are reduced by 79.28%
+```
+For every 1 degree increase in temperature, the odds of thermal distress are multiplied by about 0.793. In other words, they are reduced by about 21%
+
+## Part e
+We will now be testing the null hypothesis of if temperature has no effect on the model. And the alternative hypothesis is that temperature does have an effect.
+```{r echo=FALSE}
+anova_result <- anova(logit_model, test="Chisq")  # Test if temperature has a significant effect
+print(anova_result)
+#p-value = 0.0048 (< 0.05), so we reject the null hypothesis. As a result, temperature significantly
+#impacts the probability of thermal distress.
+```
+We find the p-value is 0.0048.  Because 0.0048 < 0.05, that means that temperature affects the probability of thermal distress. This means that the alternative hypothesis is correct.
+
+
+# Problem 2
+We will be fitting a logistic regression model for the probability of a satellite, using color alone as the predictor.
+## Part a
+While treating color as a nominal-scale factor, we need to give the prediction equation and explain how to compare the first and fourth colors.
+```{r echo=FALSE}
+model_1 <- glm(y ~ factor(crabs$color, levels = c("4", "1", "2", "3")), family = binomial, data = crabs)
+summary(model_1)
+
+#The prediction equation is: logit(π)= −0.76 + 1.86c1 + 1.74c2 + 1.13c3
+
+#c1 = 1 if the crab is color 1
+#So it would be -0.7621 + 1.8608 = 1.10
+#When it's color 4, all the other covariates are 0 except for the intercept. So it would be -0.76
+```
+The prediction equation is: logit(π)= −0.7621 + 1.8608c1 + 1.7482c2 + 1.1299c3
+
+c1 = 1 if the crab is color 1, so it would be -0.7621 + 1.8608 ~ 1.10 when it's color 1.
+When it's color 4, all the other covariates are 0 except for the intercept so it would be about -0.76. That means that color 1 has a lower odds of having a satellite compared to color 4.
+
+## Part b
+Using that model, we will be conducting a likelihood-ratio test of the null hypothesis that color has no effect on the probability of a satellite. The alternative hypothesis is that color does have an effect on there being a satellite.
+```{r echo=FALSE}
+model_null <- glm(y ~ 1, family = binomial, data = crabs)
+anova(model_null, model_1, test = "Chisq")
+```
+We find the p-value is about 0.003 (which is < 0.05). So we reject the null hypothesis and confirm the alternative hypothesis, which is that color does have an effect there being a satellite.
+
+
+## Part c
+Now, we will treat color as a quantitative, get an equation, interpret the coefficient of color and test the hypothesis that color has no effect. Our null hypothesis is that color has no effect on the equation while the alternative is that the color does have an effect.
+```{r echo=FALSE}
+model_2 <- glm(y ~ as.numeric(color), family = binomial, data = crabs)
+summary(model_2)
+anova(model_null, model_2, test = "Chisq")
+```
+Our equation is 2.3635 - 0.7147x and our p-value is 0.0004. Since the p-value < 0.05, we reject the null hypothesis and confirm the alternative (that color does have a significant effect on the model).
+
+## Part d
+
+The advantage of treating color as quantitative is that it reduces the number of parameters; as a result, there is an increase in the power which helps us with our hypothesis testing.
+
+The disadvantages of treating color as quantitative is that it could lead to making incorrect assumptions (like assuming the color is linear when it isn't) which could lead to a lack of model fit.
+
+## Part e
+We will now be using weight and quantitative color as explanatory variables, find standardized coefficients, and interpret.
+```{r echo=FALSE}
+model_full <- glm(y ~ weight + as.numeric(color), family = binomial, data = crabs)
+
+# Standardize coefficients
+model_standardized <- standardize(model_full)
+summary(model_standardized)
+```
+
+We find the color coefficient is -0.8247. That means that for every one standard deviation increase in color, the logit of being a satellite crab decrease by about 0.8.
+
+```{r}
+#Code Appendix:
+#Chad Huntebrinker
+#Problem 4.5
+#Create the dataset
+shuttle_data <- data.frame(
+  Ft = 1:23,
+  Temp = c(66, 70, 69, 68, 67, 72, 73, 70, 57, 63, 70, 78, 67, 53, 67, 
+           75, 70, 81, 76, 79, 75, 76, 58),
+  TD = c(0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 
+         0, 0, 0, 0, 0, 1, 0, 1)
+)
+
+logit_model <- glm(TD ~ Temp, data = shuttle_data, family = binomial)
+summary(logit_model)
+
+#a)
+coef(logit_model)
+
+#Temp coefficient is -0.2322. That means a one-degree increase in Temp decreases the logit by
+#0.2322. Since p = 0.0320 < 0.05, Temp has a significant effect on our model.
+
+#b)
+new_data <- data.frame(Temp = 31)
+prob_31 <- predict(logit_model, newdata = new_data, type = "response")
+cat("Estimated probability of distress at 31 degrees F:", prob_31)
+
+#c)
+logit_function <- function(temp) {
+  coef(logit_model)[1] + coef(logit_model)[2] * temp
+}
+
+temp_50 <- uniroot(function(temp) logit_function(temp) - log(0.5 / (1 - 0.5)), lower = 0, upper = 100)$root
+print(paste("Temperature at 0.5:", temp_50))
+
+#Compute linear approximation for change in probability per degree
+#B * p * (1 - p)
+slope_at_temp_50 <- coef(logit_model)[2] * (0.5 * (1 - 0.5))
+print(paste("Approximate change in probability per degree at", temp_50, " degrees F:", slope_at_temp_50))
+
+#d)
+odds_multiplier <- exp(coef(logit_model)[2])
+print(paste("Odds multiplier per degree increase in temperature:", odds_multiplier))
+#For every 1 degree increase in temperature, the odds of thermal distress are multiplied by about 0.793.
+#In other words, they are reduced by 79.28%
+
+#e)
+anova_result <- anova(logit_model, test="Chisq")  # Test if temperature has a significant effect
+print(anova_result)
+#p-value = 0.0048 (< 0.05), so we reject the null hypothesis. As a result, temperature significantly
+#impacts the probability of thermal distress.
+
+#Chad Huntebrinker
+#Problem 4.9
+library(arm)
+library(readxl)
+#Get the dataset
+crabs <- read_excel("crab_data.xlsx")
+
+#a)
+model_1 <- glm(y ~ factor(crabs$color, levels = c("4", "1", "2", "3")), family = binomial, data = crabs)
+summary(model_1)
+
+#The prediction equation is: logit(π)= −0.76 + 1.86c1 + 1.74c2 + 1.13c3
+
+#c1 = 1 if the crab is color 1
+#So it would be -0.7621 + 1.8608 = 1.10
+#When it's color 4, all the other covariates are 0 except for the intercept. So it would be -0.76
+
+#b)
+model_null <- glm(y ~ 1, family = binomial, data = crabs)
+anova(model_null, model_1, test = "Chisq")
+
+#c)
+model_2 <- glm(y ~ as.numeric(color), family = binomial, data = crabs)
+summary(model_2)
+anova(model_null, model_2, test = "Chisq")
+
+#d)
+#Advantage (Power): Treating color as quantitative reduces the number of parameters, increasing power 
+#for detecting an effect.
+
+#Disadvantage (Lack of Fit): Treating color as quantitative could lead to making assumptions (like 
+#assuming the color is linear when it isn't) which could lead to a  model lack of fit.
+
+#e)
+model_full <- glm(y ~ weight + as.numeric(color), family = binomial, data = crabs)
+
+# Standardize coefficients
+model_standardized <- standardize(model_full)
+summary(model_standardized)
+```
+
