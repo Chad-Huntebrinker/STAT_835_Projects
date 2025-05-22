@@ -1,0 +1,118 @@
+---
+title: "Chad Huntebrinker Homework 12"
+author: "Chad Huntebrinker"
+date: "2025-04-28"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+motor_data <- data.frame(
+  S = c("used", "used", "used", "used", "not used", "not used", "not used", "not used"),
+  E = c("yes", "yes", "no", "no", "yes", "yes", "no", "no"),
+  I = c("nonfatal", "fatal", "nonfatal", "fatal", "nonfatal", "fatal", "nonfatal", "fatal"),
+  count = c(1105, 14, 411111, 483, 4624, 497, 157342, 1008)
+)
+
+smoker_data <- data.frame(
+  NBW = c("nonsmoke", "nonsmoke", "smoke", "smoke"),
+  LBW = c("nonsmoke", "smoke","smoke","nonsmoke"),
+  count = c(159, 22, 14, 8)
+)
+```
+
+# Problem 7.3a
+We have table that record automobile accidents and whether the person had a seatbelt on or not. We need to find a loglinear model that describes the data well and interpret the associations.
+```{r echo=FALSE}
+model_1 <- glm(count ~ S*E*I, family = poisson, data = motor_data)
+summary(model_1)
+
+#We see the p-value for the full model's 3-way interaction term is 0.113. Since it's > 0.05, we should
+#try removing it from the model and see what we get.
+```
+We see the p-value for the full model's 3-way interaction term is 0.113. Since it's > 0.05, we should try removing it from the model and see what we get.
+
+```{r echo=FALSE}
+model_2 <- glm(count ~ S+E+I+S:E+S:I+E:I, family = poisson, data = motor_data)
+summary(model_2)
+
+#What we find is AIC is just as good for model_2 as it is model_1 and the deviance for model_2 is small
+#too (it's 2.854). And since model_2 is a simpler model, we'll stick with that one.
+#We see that the log-odds for S:E is e^(-2.399) which is about 0.091, SI is e^(1.717) = 5.567,
+#and E:I is e^(-2.797) = 0.061. That means that seatbelts reduce ejection odds by 91%, seatbelts increase the
+#odds of surviving an accident by 5.567 times, and ejection reduces the chances of surviving an accident by
+#94%.
+```
+What we find is AIC is just as good for model_2 as it is model_1 and the deviance for model_2 is small too (it's 2.854). And since model_2 is a simpler model, we'll stick with that one. We see that the log-odds for S:E is e^(-2.399) which is about 0.091, SI is e^(1.717) = 5.567, and E:I is e^(-2.797) = 0.061. That means that seatbelts reduce ejection odds by 91%, seatbelts increase the odds of surviving an accident by 5.567 times, and ejection reduces the chances of surviving an accident by 94%.
+
+# Problem 8.1
+We need to apply the McNemar test to the following table and interpret. Our null hypothesis is that there is no association between smoking status and birth weight. Our alternative hypothesis is that smoking is associated with birth weight status, specifically low birth weights are more associated with a smoking status in the data.
+```{r echo=FALSE}
+tab <- xtabs(count~NBW + LBW, data = smoker_data)
+
+tab
+
+mcnemar.test(tab, correct = FALSE)
+#We see that the McNemar's chi-squared statistic is 6.53 and the p-value is about 0.011.
+#Since that is < 0.05, we reject the null hypothesis and have strong evidence that low birth
+#weight cases are more likely than normal birth weights to be smokers.
+```
+We see that the McNemar's chi-squared statistic is 6.53 and the p-value is about 0.011. Since that is < 0.05, we reject the null hypothesis and have strong evidence that low birth weight cases are more likely than normal birth weights to be smokers.
+
+```{r}
+#Code Appendix
+#Chad Huntebrinker
+#Problem 7.3
+
+#Part a
+#We have table that record automobile accidents and whether the person had a seatbelt on or not
+#We need to find a loglinear model that describes the data well and interpret the associations.
+
+motor_data <- data.frame(
+  S = c("used", "used", "used", "used", "not used", "not used", "not used", "not used"),
+  E = c("yes", "yes", "no", "no", "yes", "yes", "no", "no"),
+  I = c("nonfatal", "fatal", "nonfatal", "fatal", "nonfatal", "fatal", "nonfatal", "fatal"),
+  count = c(1105, 14, 411111, 483, 4624, 497, 157342, 1008)
+)
+
+model_1 <- glm(count ~ S*E*I, family = poisson, data = motor_data)
+summary(model_1)
+
+#We see the p-value for the full model's 3-way interaction term is 0.113. Since it's > 0.05, we should
+#try removing it from the model and see what we get.
+
+model_2 <- glm(count ~ S+E+I+S:E+S:I+E:I, family = poisson, data = motor_data)
+summary(model_2)
+
+#What we find is AIC is just as good for model_2 as it is model_1 and the deviance for model_2 is small
+#too (it's 2.854). And since model_2 is a simpler model, we'll stick with that one.
+#We see that the log-odds for S:E is e^(-2.399) which is about 0.091, SI is e^(1.717) = 5.567,
+#and E:I is e^(-2.797) = 0.061. That means that seatbelts reduce ejection odds by 91%, seatbelts increase the
+#odds of surviving an accident by 5.567 times, and ejection reduces the chances of surviving an accident by
+#94%.
+
+#Chad Huntebrinker
+#Problem 8.1
+
+#We need to apply the McNemar test to the following table and interpret. Our null hypothesis is that
+#there is no association between smoking status and birth weight. Our alternative hypothesis is that
+#smoking is associated with birth weight status, specifically low birth weights are more associated
+#with a smoking status in the data.
+
+smoker_data <- data.frame(
+  NBW = c("nonsmoke", "nonsmoke", "smoke", "smoke"),
+  LBW = c("nonsmoke", "smoke","smoke","nonsmoke"),
+  count = c(159, 22, 14, 8)
+)
+
+tab <- xtabs(count~NBW + LBW, data = smoker_data)
+
+tab
+
+mcnemar.test(tab, correct = FALSE)
+#We see that the McNemar's chi-squared statistic is 6.53 and the p-value is about 0.011.
+#Since that is < 0.05, we reject the null hypothesis and have strong evidence that low birth
+#weight cases are more likely than normal birth weights to be smokers.
+```
+
