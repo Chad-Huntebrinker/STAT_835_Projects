@@ -1,0 +1,300 @@
+---
+title: "Chad Huntebrinker's Homework 10"
+author: "Chad Huntebrinker"
+date: "2025-04-14"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(readxl)
+
+crabs <- read_excel("crab_data.xlsx")
+```
+
+# Homework 4.19
+For this problem, we will be creating a model with color and width predictors and add three terms to permit interaction between color and width
+
+## Part a
+We need to report the prediction equations relating width to the probability of a satellite, for each color. We also need to plot our findings and report them.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+crabs$color <- factor(crabs$color, levels = c("4", "1", "2", "3"))
+
+
+model_1 <- glm(y ~ width + color + width * color, family = binomial, data = crabs)
+sum_model_1 <- summary(model_1)
+sum_model_1
+
+#The equation is -5.85 + 0.20x + 4.10c1 - 4.19c2 - 15.66c3 - 0.09(x*c1) + 0.22(x*c2) + 0.66(x*c3)
+
+#Next, we will be plotting and interpreting the prediction equation:
+#First, need to create a data frame with our predictions by giving it
+#a range of widths
+width_seq <- seq(min(crabs$width), max(crabs$width), length.out = 100)
+num_colors <- levels(crabs$color)
+
+prediction_grid <- expand.grid(
+  width = width_seq,
+  color = num_colors
+)
+
+prediction_grid$probability <-  predict(model_1, newdata = prediction_grid, type = "response")
+
+ggplot(prediction_grid, aes(x = width, y = probability, color = color)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Predicted Probability of Satelites",
+    xlab = "Width",
+    ylab = "Probability",
+    color = "Crab Color"
+  )
+#What we see on the graph is that color 1 and even color 4 have a steady relation with width. As width
+#increases, so does the probability that they will have a satelite. Color 2 and 3 have a sharp increase around
+#22.5 width and it starts faltering off around 28 width.
+```
+
+
+The equation is logit($\hat{\pi}$) = -5.85 + 0.20x + 4.10c1 - 4.19c2 - 15.66c3 - 0.09(x * c1) + 0.22(x * c2) + 0.66(x * c3) where c1 is color 1, c2 is color 2, c3 is color 3, and x is width.
+
+What we see on the graph is that color 1 and color 4 have a steady relation with width. As width increases, so does the probability that they will have a satellite. Color 2 and 3 have a sharp increase around 22.5cm width and it starts faltering off around 28cm width.
+
+## Part b
+Next, we test whether the interaction model fits better than the simpler model without interaction terms. We'll need to compare their predictive power by finding the correlation R between the observed and fitted values for each model and interpret.
+
+Our null hypothesis is that the interaction terms do not improve the model while our alternative hypothesis is that the interaction terms do improve the model.
+```{r echo=FALSE}
+model_2 <- glm(y ~ width + color, family = binomial, data = crabs)
+sum_model_2 <- summary(model_2)
+
+cat("AIC of interaction model: ", sum_model_1$aic, "\n")
+cat("AIC of simplier model: ", sum_model_2$aic, "\n")
+
+anova(model_2, model_1)
+cat("Correlation for the simplier model: ", cor(crabs$y, fitted(model_2)), "\n")
+cat("Correlation for the interaction model: ", cor(crabs$y, fitted(model_1)), "\n")
+#The likelihood ratio statistic is 4.4 and the p-value is 0.22 (which is greater than 0.05). 
+#The correlation for the simpler model is 0.452 and the correlation for the complex model is 0.472.
+#As a result of these findings, we can say that simpler model fits almost as well as the interaction model
+#and would be fine to use.
+```
+What we find is that their AICs are extremly similar (only different by about 2). We also see that the likelihood ratio statistic is 4.4 with a p-value of 0.22. Since our p-value is > 0.05, we fail to reject the null hypothesis; thus, left with the conclusion that our interaction terms don't help with the model. And we see that the correlation for the simpler model is 0.45 while the correlation for the interaction model is 0.47.
+
+All of these support the idea that the simpler model is fits just as well as the interaction model and is fine to use.
+
+# Problem 5.1
+For the horseshoe crabs data file, we will be fitting a model using weight and width as explanatory variables for the probability of a satellite.
+
+## Part a
+We need to conduct a likelihood-ratio test of H0: B1 = B2 = 0 and interpret. Our alternative hypothesis is that at least one predictor is significant to whether there's a satellite to the crab.
+```{r echo=FALSE}
+model_1 <- glm(y ~ width + weight, family = binomial, data = crabs)
+sum_model_1 <- summary(model_1)
+
+model_reduced <- glm(y~1, family = binomial, data = crabs)
+
+#Our null hypothesis is that B1 = B2 = 0 while our alternative hypothesis is that at least one
+#predictor is significant to the model (either B1 != 0, B2 != 0 or both)
+anova(model_reduced, model_1)
+
+#The LR statistic is 32.9. Since our p-value < 0.05, we reject H0. That means that at least
+#one of our predictors has a significant role on the model
+```
+The LR statistic is 32.9 and our p-value is 7.296e-08. Since our p-value < 0.05, we reject H0. That means that we have strong evidence that at least one of our predictors has a significant role on the probability of there being a satellite for the crab.
+
+## Part b
+Next, we will be conducting separate likelihood-ratio tests for the partial effects of each variable. Our null hypothesis for both is that the variable we are removing (weight for one test and width for the other) doesn't have an effect on the probability of the crab having a satellite while our alternative is that it does.
+```{r echo=FALSE}
+model_no_weight <- glm(y ~ width, family = binomial, data = crabs)
+model_no_width <- glm(y ~ weight, family = binomial, data = crabs)
+
+anova(model_no_weight, model_1)
+anova(model_no_width, model_1)
+
+#The LR statistic is 1.56 for weight and 2.85 for width, with p-values of 0.21 and 0.09.
+#One possible reason why neither test shows evidence of an effect while the previous step's test did is that
+#when combined together, the variables provide valuable insight that can't be seen in a LR-test. So when they
+#are separate, they seem useless to the model. But putting them together in the same model allows them to
+#better explain what is going on in the model.
+```
+The LR statistic is 1.56 for weight and 2.85 for width, with p-values of 0.21 and 0.09. Since both of these p-values are > 0.05, we fail to reject H0 for both of these LR tests. So the question becomes: why does neither of these LR tests show evidence of an effect when the test in part a shows very strong evidence? One possible reason why neither test shows evidence of an effect while the previous test did is that when combined together, the variables provide valuable insight that can't be seen in a LR-test. So when they are separate, they seem to be useless to the model. But when you include both in the model, the combination explains more about the probability that there is a satellite for the crab.
+
+## Part c
+Finally, we will be using purposeful selection to build a model when weight, the spine condition, and color factors are the potential explanatory variables. We will be doing this by comparing each model's AIC and deviance.
+
+First, we will build each model with one variable and compare their AICs:
+```{r echo=FALSE}
+#First, build each model with one variable and compare their AICs
+model_weight <- glm(y ~ weight, family = binomial, data = crabs)
+model_spine <- glm(y ~ spine, family = binomial, data = crabs)
+model_color <- glm(y ~ color, family = binomial, data = crabs)
+
+sum1 <- summary(model_reduced)
+sum2 <- summary(model_weight)
+sum3 <- summary(model_spine)
+sum4 <- summary(model_color)
+
+cat("Reduced model's AIC: ", sum1$aic, "\n")
+cat("Weight model's AIC: ", sum2$aic, "\n")
+cat("Spine model's AIC: ", sum3$aic, "\n")
+cat("Color model's AIC: ", sum4$aic, "\n")
+```
+We will keep weight and color with our models because their AICs are the best (in other words, the lowest).
+
+Next, we will build a model with weight and color and compare them to their models with only weight or color.
+```{r echo=FALSE}
+#Next, we will build a model with weight and color and compare them to their models with only weight or color
+model_weight_color <- glm(y ~ weight + color, family = binomial, data = crabs)
+sum5 <- summary(model_weight_color)
+
+cat("Weight and color model's AIC: ", sum5$aic, "\n")
+anova(model_weight, model_weight_color)
+anova(model_color, model_weight_color)
+```
+We find that the AIC for weight and color is better than the model with just color and slightly improves when compared to the model with just weight. We also see that the deviance decreases with the model of weight and color. As a result, we will move ahead with the model that includes both weight and color in it due to the fact that when included together, weight and color seem to do a better job of explaining the probability of a crab of having a satellite.
+
+Next, we add spine to our model of weight and color.
+```{r echo=FALSE}
+#Next, add spine to our model
+model_weight_color_spine <- glm(y ~ weight + color + spine, family = binomial, data = crabs)
+cat("Weight, color, and spine condition model's AIC: ", summary(model_weight_color_spine)$aic, "\n")
+anova(model_weight_color, model_weight_color_spine)
+```
+The AIC isn't better by the addition of spine (compared to weight and color model's AIC of 198.5423) and we find that the deviance doesn't decrease by much either. So, we remove spine from the model.
+
+Finally, we add an interaction between color and weight into our color and weight model.
+```{r echo=FALSE}
+#Finally, add an interaction between color and weight
+model_weight_color_interaction <- glm(y ~ weight + color + weight*color, family = binomial, data = crabs)
+cat("Weight and color's interaction model's AIC: ", summary(model_weight_color_interaction)$aic, "\n")
+anova(model_weight_color, model_weight_color_interaction)
+```
+We see the AIC improves slightly compared to the AIC of just weight and color (weight and color model's AIC: 198.5423) but we also see the deviance has a small decrease (of about 7).  As a result, there is a marginal improvement when we add an interaction; however, it doesn't seem to be enough to justify complicating the model by adding an interaction term. As a result, we find our best model is with weight and color but no interaction.
+
+```{r}
+#Code Appenix
+#Chad Huntebrinker
+#Problem 4.19
+library(ggplot2)
+library(readxl)
+
+#a)
+crabs <- read_excel("crab_data.xlsx")
+crabs$color <- factor(crabs$color, levels = c("4", "1", "2", "3"))
+
+
+model_1 <- glm(y ~ width + color + width * color, family = binomial, data = crabs)
+sum_model_1 <- summary(model_1)
+
+#The equation is -5.85 + 0.20x + 4.10c1 - 4.19c2 - 15.66c3 - 0.09(x*c1) + 0.22(x*c2) + 0.66(x*c3)
+
+#Next, we will be plotting and interpreting the prediction equation:
+#First, need to create a data frame with our predictions by giving it
+#a range of widths
+width_seq <- seq(min(crabs$width), max(crabs$width), length.out = 100)
+num_colors <- levels(crabs$color)
+
+prediction_grid <- expand.grid(
+  width = width_seq,
+  color = num_colors
+)
+
+prediction_grid$probability <-  predict(model_1, newdata = prediction_grid, type = "response")
+
+ggplot(prediction_grid, aes(x = width, y = probability, color = color)) +
+  geom_line(size = 1.2) +
+  labs(
+    title = "Predicted Probability of Satelites",
+    xlab = "Width",
+    ylab = "Probability",
+    color = "Crab Color"
+  )
+#What we see on the graph is that color 1 and even color 4 have a steady relation with width. As width
+#increases, so does the probability that they will have a satelite. Color 2 and 3 have a sharp increase around
+#22.5 width and it starts faltering off around 28 width.
+  
+#b)
+model_2 <- glm(y ~ width + color, family = binomial, data = crabs)
+sum_model_2 <- summary(model_2)
+
+cat("AIC of interaction model: ", sum_model_1$aic, "\n")
+cat("AIC of simplier model: ", sum_model_2$aic, "\n")
+
+anova(model_2, model_1)
+cat("Correlation for the simplier model: ", cor(crabs$y, fitted(model_2)), "\n")
+cat("Correlation for the interaction model: ", cor(crabs$y, fitted(model_1)), "\n")
+#The likelihood ratio statistic is 4.4 and the p-value is 0.22 (which is greater than 0.05). 
+#The correlation for the simpler model is 0.452 and the correlation for the complex model is 0.472.
+#As a result of these findings, we can say that simpler model fits almost as well as the interaction model
+#and would be fine to use.
+
+#Chad Huntebrinker
+#Problem 5.1
+library(readxl)
+
+#a)
+crabs <- read_excel("crab_data.xlsx")
+
+model_1 <- glm(y ~ width + weight, family = binomial, data = crabs)
+sum_model_1 <- summary(model_1)
+
+model_reduced <- glm(y~1, family = binomial, data = crabs)
+
+#Our null hypothesis is that B1 = B2 = 0 while our alternative hypothesis is that at least one
+#predictor is significant to the model (either B1 != 0, B2 != 0 or both)
+anova(model_reduced, model_1)
+
+#The LR statistic is 32.9. Since our p-value < 0.05, we reject H0. That means that at least
+#one of our predictors has a significant role on the model
+
+#b)
+model_no_weight <- glm(y ~ width, family = binomial, data = crabs)
+model_no_width <- glm(y ~ weight, family = binomial, data = crabs)
+
+anova(model_no_weight, model_1)
+anova(model_no_width, model_1)
+
+#The LR statistic is 1.56 for weight and 2.85 for width, with p-values of 0.21 and 0.09.
+#One possible reason why neither test shows evidence of an effect while the previous step's test did is that
+#when combined together, the variables provide valuable insight that can't be seen in a LR-test. So when they
+#are separate, they seem useless to the model. But putting them together in the same model allows them to
+#better explain what is going on in the model.
+
+#c)
+#First, build each model with one variable and compare their AICs
+model_weight <- glm(y ~ weight, family = binomial, data = crabs)
+model_spine <- glm(y ~ spine, family = binomial, data = crabs)
+model_color <- glm(y ~ color, family = binomial, data = crabs)
+
+summary(model_reduced)
+summary(model_weight)
+summary(model_spine)
+summary(model_color)
+#We will keep weight and color because their AICs are the best.
+
+#Next, we will build a model with weight and color and compare them to their models with only weight or color
+model_weight_color <- glm(y ~ weight + color, family = binomial, data = crabs)
+summary(model_weight_color)
+anova(model_weight, model_weight_color)
+anova(model_color, model_weight_color)
+
+#We find that the AIC for weight and color is better than when they are on their own and we
+#see that there is increase in deviance when we remove color or weight from the model
+
+#Next, add spine to our model
+model_weight_color_spine <- glm(y ~ weight + color + spine, family = binomial, data = crabs)
+summary(model_weight_color_spine)
+anova(model_weight_color, model_weight_color_spine)
+#The AIC isn't better by this addition and we find that the deviance doesn't increase by much. So, we
+#remove spine from the model
+
+#Finally, add an interaction between color and weight
+model_weight_color_interaction <- glm(y ~ weight + color + weight*color, family = binomial, data = crabs)
+summary(model_weight_color_interaction)
+anova(model_weight_color, model_weight_color_interaction)
+#We see the AIC doesn't improve and we also see the deviance has only a small increase.  As a result,
+#we find our best model is with weight and color but no interaction.
+```
+
