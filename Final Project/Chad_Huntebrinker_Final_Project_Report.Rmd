@@ -1,0 +1,551 @@
+---
+title: 'Heart Disease: What is It and How to Predict It'
+author: "Chad Huntebrinker"
+date: "2025-05-09"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(VGAM)
+library(pROC)
+
+data_set <- read_excel("Heart_Disease_data.xlsx")
+
+data_set$num3 <- cut(data_set$num,
+                     breaks = c(-1, 0, 2, 4),
+                     labels = c(0, 1, 2),
+                     ordered_result = TRUE)
+
+vglm_final_model <- vglm(num3 ~ trestbps + sex + cp + exang + oldpeak + thalach,
+                     family = cumulative(parallel = TRUE),
+                     data = data_set)
+```
+
+# Abstract
+Each year there are about 17.9 million lives lost to cardiovascular diseases, which is the leading cause of death globally (World Health Organization, 2023). One such type of cardiovascular disease is heart disease. In the United States, heart disease is the leading cause of death for men and women; in 2022, 702,880 people died from heart disease (Centers for Disease Control and Prevention, 2024). One of the problems with heart disease is that it can be difficult to have early detection due to it being related to multiple different medical and lifestyle factors. This results in many cases that might have been easily prevented or cured instead go undetected. Fortunately, with the help of data-modeling and using them to make predictions, we can create models that assist in forecasting and understanding heart disease. For this final project, I hope to answer the following research questions:
+
+What are the most significant indicators that predict the presence of heart disease?
+
+What are the most significant indicators for predicting the severity of the heart disease present?
+
+Understanding which variables contribute most to the likelihood of heart disease could help in early screening, prevention, and treatment plans.
+
+# Introduction
+In order to find the predictors for heart disease, we must understand what heart disease is first. According to Mayo Clinic, heart disease is a range of conditions including blood vessel disease, irregular heartbeats, heart conditions that individuals are born with (called congenital heart defects), disease of the heart muscle, and heart valve disease. While there are multiple types of heart diseases, it boils down to a condition that impacts both the heart and the blood vessels by it.
+
+I will be using the Heart Disease dataset from the UCI Machine Learning Repository. More specifically, I will be using the data collected at the Cleveland clinic as that’s the only one that has been used by machine learning researchers to date. The database was collected in the following way:
+
+The reference group used to derive the model consisted of 303 consecutive patients referred for coronary angiography at the Cleveland Clinic between May 1981 and September 1984. No patient had a history or electrocardiographic evidence of prior myocardial infarction or known valvular or cardiomyopathic disease. All 303 patients provided a history and underwent physical examination, electrocardiogram at rest, serum cholesterol determination and fasting blood sugar determination as part of their routine evaluation. Historical data were recorded and coded without knowledge of noninvasive or angiographic test data. In addition, after giving informed consent, the patients underwent 3 noninvasive tests as part of a research protocol. The results of these tests (exercise electrocardiogram, thallium scintigraphy and cardiac fluoroscopy) were not interpreted until after the coronary angiograms had been read. These tests were analyzed and the results recorded without knowledge of the historical or angiographic results… The mean age of these patients was 54 years; 206 were men. Angiograms were interpreted by a cardiologist without knowledge of other test data (Deterano, Robert, 1998).
+
+The dataset I will be using includes 303 observations with the following 14 variables:
+Age: Age of the patient in years
+
+Sex: Male or female
+
+Cp: Chest pain type (1 = typical angina, 2 = atypical angina, 3 = non-anginal pain, 4 = asymptomatic)
+
+Trestbps:	Resting blood pressure in mmHg
+
+Chol:	Serum cholesterol in mg/dL
+
+Fbs: Fasting blood sugar > 120 mg/dl (1 = true, 0 = false)
+
+Restecg: Resting electrocardiographic results (0 = normal, 1 = ST-T wave abnormality, 2 = probable left ventricular hypertrophy)
+
+Thalach: Maximum heart rate during exercise
+
+Exang: Exercise-induced angina (1 = yes, 0 = no)
+
+Oldpeak: ST depression induced by exercise related to rest
+
+Slope: Slope of the peak exercise ST segment (1 = upsloping, 2 = flat, 3 = downsloping)
+
+Ca:	Number of major vessels colored by fluoroscopy
+
+Thal: Result from a Thallium stress test (3 = normal, 6 = fixed defect, 7 = reversible defect).
+
+num: Presence of heart disease (0 = no heart disease, 1–4 = heart disease of increasing severity).
+
+The CDC states that some key factors for heart disease are high cholesterol, high blood pressure, age, and sex (Centers for Disease Control and Prevention, 2024). I'll be taking these experts' opinions into consideration when building the model and will be starting the baseline model with these 4 variables. Other variables will be added later to see if they help in explaining heart disease factors. For example, not enough exercise can lead to heart disease and our data set includes a variable labeled "thalach" which measures the maximum heart rate achieved during exercise.
+
+Due to the response being within a specific range (a number between 0 and 4), multiple cumulative logistic regression models will be fitted to the data. Another thing to note though was that while the severity of the heart disease present increased, the number of patients that had it decreased.
+
+```{r echo=FALSE}
+table(data_set$num)
+```
+This made it difficult to train the model due to the lack of data. So to remedy this, a combination was done on value 1 and 2 (a mild case of heart disease, indicated by a 1) and 3 and 4 (a severe case of heart disease, indicated by a 2) to help balance out the data.
+
+```{r echo=FALSE}
+table(data_set$num3)
+```
+As a result, our model will be predicting whether there is no heart disease (0), a mild case of heart disease (1), or a severe case of heart disease (2) in a our new response variable "num3".
+
+# Methods
+The first model created is with factors found on the CDC website: cholesterol, blood pressure, age, and sex.
+
+```{r echo=FALSE}
+#Add the baseline predictors
+vglm_model_1 <- vglm(num3 ~ trestbps + chol + age + sex, 
+                     family = cumulative(parallel = TRUE), data = data_set)
+summary(vglm_model_1)
+```
+What's found is that the p-value for the variable chol is greater than our cutoff of 0.05. As a result, an effort to remove it from the model will be tried by conducting a likelihood ratio test to see if the model improves without it. Our null hypothesis is that removing chol from the model improves it while the alternative hypothesis is that including chol improves the model.
+
+```{r echo=FALSE}
+vglm_model_2 <- vglm(num3 ~ trestbps + age + sex, 
+                     family = cumulative(parallel = TRUE), data = data_set)
+summary(vglm_model_2)
+lrtest(vglm_model_1, vglm_model_2)
+```
+What's found is that the variables' p-values for the simpler model are all less than 0.05 (and, thus, help to explain the presence and severity of heart disease). Also, our likelihood ratio test has a p-value of 0.1138. Since this is greater than 0.05, the null hypothesis is not rejected and the conclusion is that removing cholesterol from the model increases it's effectiveness.
+
+Now that there is a baseline model, the next step is to try including the rest of the variables to see what helps the model.
+
+```{r echo=FALSE}
+model_cp <- vglm(num3 ~ trestbps + age + sex + cp, 
+                 family = cumulative(parallel = TRUE), 
+                 data = data_set)
+
+model_fbs <- vglm(num3 ~ trestbps + age + sex + fbs, 
+                       family = cumulative(parallel = TRUE), 
+                       data = data_set)
+
+model_restecg <- vglm(num3 ~ trestbps + age + sex + restecg, 
+                       family = cumulative(parallel = TRUE), 
+                       data = data_set)
+
+model_thalach <- vglm(num3 ~ trestbps + age + sex + thalach, 
+                      family = cumulative(parallel = TRUE), 
+                      data = data_set)
+
+model_exang <- vglm(num3 ~ trestbps + age + sex + exang, 
+                    family = cumulative(parallel = TRUE), 
+                    data = data_set)
+
+model_oldpeak <- vglm(num3 ~ trestbps + age + sex + oldpeak, 
+                      family = cumulative(parallel = TRUE), 
+                      data = data_set)
+
+model_slope <- vglm(num3 ~ trestbps + age + sex + slope, 
+                      family = cumulative(parallel = TRUE), 
+                      data = data_set)
+
+model_ca <- vglm(num3 ~ trestbps + age + sex + ca, 
+                 family = cumulative(parallel = TRUE), 
+                 data = data_set)
+
+model_thal <- vglm(num3 ~ trestbps + age + sex + thal, 
+                      family = cumulative(parallel = TRUE), 
+                      data = data_set)
+
+sum_of_model_cp <- summary(model_cp)
+sum_of_model_fbs <- summary(model_fbs) # No good
+sum_of_model_restecg <- summary(model_restecg) # No good
+sum_of_model_slope <- summary(model_slope)
+sum_of_model_ca <- summary(model_ca) # No good
+sum_of_model_exang <- summary(model_exang)
+sum_of_model_oldpeak <- summary(model_oldpeak)
+sum_of_model_thalach <- summary(model_thalach)
+sum_of_model_thal <- summary(model_thal) # No good
+
+ml <- list(
+  "cp model" = sum_of_model_cp@coef3[, "Pr(>|z|)"],
+  "fbs model" = sum_of_model_fbs@coef3[, "Pr(>|z|)"],
+  "restecg model" = sum_of_model_restecg@coef3[, "Pr(>|z|)"],
+  "slope model" = sum_of_model_slope@coef3[, "Pr(>|z|)"],
+  "ca model" = sum_of_model_ca@coef3[, "Pr(>|z|)"],
+  "exang model" = sum_of_model_exang@coef3[, "Pr(>|z|)"],
+  "old peak model" = sum_of_model_oldpeak@coef3[, "Pr(>|z|)"],
+  "thalach model" = sum_of_model_thalach@coef3[, "Pr(>|z|)"],
+  "thal model" = sum_of_model_thal@coef3[, "Pr(>|z|)"]
+)
+
+ml
+```
+According to the p-values, the model with fbs, restecg, ca, and thal are greater than 0.05. Thus, removal from consideration is the best next step. But the other variables seem like good predictors so the next step for them is to check their AIC scores
+
+```{r echo=FALSE}
+cat("AIC score of model 1 (includes age): ", AIC(vglm_model_1), "\n")
+cat("AIC score of model 2 (excludes age): ", AIC(vglm_model_2), "\n")
+
+cat("AIC score of model with cp: ", AIC(model_cp), "\n")
+cat("AIC score of model with slope: ", AIC(model_slope), "\n") #Doesn't have a huge improvement
+cat("AIC score of model with exang: ", AIC(model_exang), "\n")
+cat("AIC score of model with oldpeak: ", AIC(model_oldpeak), "\n")
+cat("AIC score of model with thalach: ", AIC(model_thalach), "\n")
+```
+What's found is that slope doesn't have a huge drop in AIC like the others. So for the sake of keeping the model simple, slope will not be added to the model.
+
+But the rest of the models improve when adding the new predictor variables; the next would be to try adding all of them into our model.
+
+```{r echo=FALSE}
+vglm_model_3 <- vglm(num3 ~ trestbps + age + sex + cp + exang + oldpeak + thalach,
+                     family = cumulative(parallel = TRUE),
+                     data = data_set)
+summary(vglm_model_3)
+#The p-value for age was greater than 0.05, so let's try removing it from the model.
+```
+What's now found is that the p-value for age is greater than our cutoff of 0.05. A likelihood ratio test will be conducted to see if it should be included in the model or not. The null hypothesis is that the model removing age is better while the alternative hypothesis is that including age will help it. A comparition of their AIC scores will also be done.
+
+```{r echo=FALSE}
+vglm_model_4 <- vglm(num3 ~ trestbps + sex + cp + exang + oldpeak + thalach,
+                     family = cumulative(parallel = TRUE),
+                     data = data_set)
+summary(vglm_model_4)
+cat("\n")
+
+lrtest(vglm_model_4, vglm_model_3)
+cat("\n")
+cat("AIC score of model with age: ", AIC(vglm_model_3), "\n")
+cat("AIC score of model without age: ", AIC(vglm_model_4), "\n")
+```
+The AIC scores are almost identical and the p-value in the likelihood ratio test is 0.1595. Since the p-value is greater than 0.05, the null hypothesis is failed to be rejected and the model without age is better than the model with age. With these findings, the final model is almost completed. The last step is to check if there are any interaction variables that should be included. Specifically, an investigation was done to see if sex has any interaction with other predictors. A model with sex interaction terms was created with the following:
+
+```{r echo=FALSE}
+#Specifically, the sex of the individual with it:
+vglm_model_interaction <- vglm(num3 ~ sex * trestbps + sex * cp + sex * exang + sex * oldpeak + sex * thalach,
+                               family = cumulative(parallel = TRUE),
+                               data = data_set)
+
+summary(vglm_model_interaction)
+AIC(vglm_model_interaction)
+#The AIC is basically the same and the p-values disqualify them. So no interaction between sex and the other
+#variables.
+
+#Next we'll move onto how well the model fits and explains the data.
+```
+The p-values for all the interaction terms are greater than 0.05. Thus, the final model has no interaction terms and has the following terms: trestbps (resting blood pressure), sex, cp (chest pain type), exang (whether there was exercise induced angina), oldpeak (ST depression induced by exercise relative to rest), and thalach (maximum heart rate achieved during exercise).
+
+The next step is to see how well this final model does at explaining and predicting the heart disease outcome within the data. The first step for that will be to look at the standardized residuals.
+
+```{r echo=FALSE}
+pred_prob <- predict(vglm_final_model, type = "response")
+
+#Define observed outcomes for each threshold
+threshold_1 <- data_set$num3 < 1  # "None" vs "Mild + Severe"
+threshold_2 <- data_set$num3 < 2  # "None + Mild" vs "Severe"
+
+#Calculate response residuals for each threshold
+residuals_threshold_1 <- threshold_1 - pred_prob[, 1]
+residuals_threshold_2 <- threshold_2 - pred_prob[, 2]
+
+#Standardized the residuals
+std_residuals_threshold_1 <- residuals_threshold_1 / sqrt(pred_prob[, 1] * (1 - pred_prob[, 1]))
+std_residuals_threshold_2 <- residuals_threshold_2 / sqrt(pred_prob[, 2] * (1 - pred_prob[, 2]))
+
+#Plot for threshold 1
+plot(std_residuals_threshold_1, 
+     main = "Standardized Residuals for Threshold 1", 
+     ylab = "Standardized Residuals", 
+     xlab = "Data Index", 
+     pch = 16, col = "blue")
+abline(h = 0, col = "red")
+abline(h = c(-2, 2), col = "red", lty = 2)
+
+#Plot for threshold 2
+plot(std_residuals_threshold_2, 
+     main = "Standardized Residuals for Threshold 2", 
+     ylab = "Standardized Residuals", 
+     xlab = "Data Index", 
+     pch = 16, col = "blue")
+abline(h = 0, col = "red")
+abline(h = c(-2, 2), col = "red", lty = 2)
+
+
+#Try to find a similarity between the outlie data points but unable to find it.
+outliers_SRT2 <- which(abs(std_residuals_threshold_2) > 2)
+outlier_data_set <- data_set[outliers_SRT2, ]
+```
+
+It's important to note that this part of the investigation has two thresholds that will be checked with the model: the cases that had no heart disease compared to if they had a mild or severe case (threshold 1) and the cases that had no heart disease and a mild case of heart disease compared to a severe case of heart disease (threshold 2). What's found is that the first threshold has some standardized residuals that are above the 2 and below the -2 mark but not many. This means that those residuals are well distributed around 0, meaning the model does a good job of differentiating between no disease and having a disease. For threshold 2, however, more outliers are found compared to the first threshold. This indicates the model has a tougher time distinguishing between the severity of the heart disease.
+
+Next, the ROC curve and AUC (Area Under the Curve) will be looked at regarding these two thresholds.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#Let's check the ROC curve and the AUC
+
+#ROC for first threshold
+roc1 <- roc(threshold_1, pred_prob[, 1], plot = TRUE, col = "blue", 
+            main = "ROC Curves for Both Thresholds", lwd = 2)
+auc1 <- auc(roc1)
+
+#ROC for second threshold
+roc2 <- roc(threshold_2, pred_prob[, 2], plot = TRUE, col = "red", lwd = 2, add = TRUE)
+auc2 <- auc(roc2)
+
+#Add legend
+legend("bottomright", legend = c(paste("Threshold 1 (AUC =", round(auc1, 2), ")"), 
+                                 paste("Threshold 2 (AUC =", round(auc2, 2), ")")), 
+       col = c("blue", "red"), lwd = 2)
+```
+
+What is found is the AUC is rather high for the first threshold and lower for the second. This indicates that the model does an effective job of detecting if a patient has heart disease; however, once again, the model struggles to detect how severe it is. This confirms what was found with the residuals as well.
+
+# Results and Discussions
+
+The model does a good job of predicting the presence of heart disease but not so much the severity of it. The biggest reason why that could be is because of the number of cases with or without heart disease. A quick look at the data will show that there is a large amount of cases with no heart disease, a decent size with a mild case, and a small amount with a severe case (at least when compared to the number of cases with no heart disease and a mild case of heart disease).
+
+```{r echo=FALSE}
+table(data_set$num3)
+```
+
+Since the number of cases with no heart disease compared to cases with heart disease (both mild and severe cases combined) are about the same, that would explain why the model is more effective at predicting the presence of heart disease compared to predicting the severity of it. Having data with more cases of heart disease (both mild and severe) would greatly improve the model's effectiveness at predicting the severity of the heart disease. Overall, the model does a good job but it can be improved.
+
+# Conclusions
+
+The goal for this report was to find the variables that did the best job of explaining not only the presence of heart disease, but also the severity of it. In our final model, the following variables were used:
+
+```{r echo=FALSE}
+summary(vglm_final_model)
+```
+
+
+trestbps: A 1 mmHg increase in resting blood pressure led to a 1.9% decrease in the odds of being in a lower severity category.
+
+sex: Males have a 74% lower odds of being in a lower severity category.
+
+cp: More severe chest pain is associated with a 52% decrease in the odds of being a less severe heart disease.
+
+exang: Exercise-induced angina (a type of chest pain that happens during physical exertion) is associated with a 47% decrease in the odds of lower severity.
+
+oldpeak: Each unit increase in ST depression was associated with a 43% decrease in the odds of being in a lower severity category.
+
+thalach: Higher maximum heart rate was associated with a 2% increase in the odds of lower severity.
+
+In short, higher blood pressure, males, more severe chest pain, excercise-induced angina, increase in ST depression, and a higher maximum heart rate when exercising seem to be linked to having higher odds of heart disease or a more severe disease. More specifically, it seemed like sex, chest pain type, and ST depression were the variables that had the most influence of indicating the presence and severity of heart disease. When seeing how well the model fits the data that was used, the model does a good job of differentiating between patients that have heart disease verses patients that do not. However, the model struggles when predicting how severe the heart disease is. This could be due to a lack of number of cases that have a mild and especially a severe case of heart disease. To improve the model, a good first step would be to increase the amount of cases with a severe and a mild case of heart disease in the data. This would allow the model to be better trained on predicting the severity of the disease. In the end, the variables seem to do a good job of explaining heart disease and our model does a good job of predicting it. However, it can be improved by having more data cases where heart disease is present.
+
+# References
+
+Centers for Disease Control and Prevention. “Heart Disease Facts.” Centers for Disease Control and Prevention, 11 Jan. 2024, https://www.cdc.gov/heart-disease/data-research/facts-stats/index.html.
+
+Detrano, Robert, et al. “International Application of a New Probability Algorithm for the Diagnosis of Coronary Artery Disease.” The American Journal of Cardiology, vol. 64, no. 5, 1989, pp. 304–310. https://doi.org/10.1016/0002-9149(89)90524-9.
+
+Dua, Dheeru, and Casey Graff. "Heart Disease Data Set." UCI Machine Learning Repository, University of California, Irvine, 1988, https://archive.ics.uci.edu/dataset/45/heart+disease.
+
+Dua, Dheeru, and Casey Graff. “Heart Disease Data Set.” UCI Machine Learning Repository, University of California, Irvine, School of Information and Computer Sciences, 2019, https://archive.ics.uci.edu/ml/datasets/heart+Disease.
+
+Mayo Clinic Staff. "Heart Disease." Mayo Clinic, Mayo Foundation for Medical Education and Research, 12 Dec. 2024, https://www.mayoclinic.org/diseases-conditions/heart-disease/symptoms-causes/syc-20353118. Accessed 12 May 2025.
+
+World Health Organization. “Cardiovascular Diseases.” World Health Organization, 2023, https://www.who.int/health-topics/cardiovascular-diseases.
+
+
+# Appendix
+```{r}
+#Chad Huntebrinker
+#Final Project
+library(readxl)
+library(VGAM)
+
+#First, load the dataset
+data_set <- read_excel("Heart_Disease_data.xlsx")
+colSums(is.na(data_set))
+
+#Data was pretty spread out, so we needed to break them down into 3 categories instead of 5.
+data_set$num3 <- cut(data_set$num,
+                     breaks = c(-1, 0, 2, 4),
+                     labels = c(0, 1, 2),
+                     ordered_result = TRUE)
+
+
+#Variables that will be included due to the CDC: trestbps, chol, age, sex
+
+#Add the baseline predictors
+vglm_model_1 <- vglm(num3 ~ trestbps + chol + age + sex, 
+                     family = cumulative(parallel = TRUE), data = data_set)
+summary(vglm_model_1)
+
+#Needed to remove chol because the p-value
+vglm_model_2 <- vglm(num3 ~ trestbps + age + sex, 
+                     family = cumulative(parallel = TRUE), data = data_set)
+summary(vglm_model_2)
+lrtest(vglm_model_1, vglm_model_2)
+
+#Try adding the other variables
+
+model_cp <- vglm(num3 ~ trestbps + age + sex + cp, 
+                 family = cumulative(parallel = TRUE), 
+                 data = data_set)
+
+model_fbs <- vglm(num3 ~ trestbps + age + sex + fbs, 
+                       family = cumulative(parallel = TRUE), 
+                       data = data_set)
+
+model_restecg <- vglm(num3 ~ trestbps + age + sex + restecg, 
+                       family = cumulative(parallel = TRUE), 
+                       data = data_set)
+
+model_thalach <- vglm(num3 ~ trestbps + age + sex + thalach, 
+                      family = cumulative(parallel = TRUE), 
+                      data = data_set)
+
+model_exang <- vglm(num3 ~ trestbps + age + sex + exang, 
+                    family = cumulative(parallel = TRUE), 
+                    data = data_set)
+
+model_oldpeak <- vglm(num3 ~ trestbps + age + sex + oldpeak, 
+                      family = cumulative(parallel = TRUE), 
+                      data = data_set)
+
+model_slope <- vglm(num3 ~ trestbps + age + sex + slope, 
+                      family = cumulative(parallel = TRUE), 
+                      data = data_set)
+
+model_ca <- vglm(num3 ~ trestbps + age + sex + ca, 
+                 family = cumulative(parallel = TRUE), 
+                 data = data_set)
+
+model_thal <- vglm(num3 ~ trestbps + age + sex + thal, 
+                      family = cumulative(parallel = TRUE), 
+                      data = data_set)
+
+summary(model_cp)
+summary(model_fbs) # No good
+summary(model_restecg) # No good
+summary(model_slope)
+summary(model_ca) # No good
+summary(model_exang)
+summary(model_oldpeak)
+summary(model_thalach)
+summary(model_thal) # No good
+
+#Model with fbs, restecg, ca, and thal are no good but the other ones seem like good predictors.
+#Check the AICs of all of them
+AIC(vglm_model_1)
+AIC(vglm_model_2)
+
+AIC(model_cp)
+AIC(model_slope) #Doesn't have a huge improvement
+AIC(model_exang)
+AIC(model_oldpeak)
+AIC(model_thalach)
+#Slope doesn't have a huge drop in AIC, so we're on the fence with it.
+#For the sake of keeping the model simple, we'll keep it off the model.
+
+#But the rest of the models improve when we add the new predictor variables.
+#So we will try adding them in.
+
+vglm_model_3 <- vglm(num3 ~ trestbps + age + sex + cp + exang + oldpeak + thalach,
+                     family = cumulative(parallel = TRUE),
+                     data = data_set)
+summary(vglm_model_3)
+#The p-value for age was greater than 0.05, so let's try removing it from the model.
+
+
+vglm_model_4 <- vglm(num3 ~ trestbps + sex + cp + exang + oldpeak + thalach,
+                     family = cumulative(parallel = TRUE),
+                     data = data_set)
+summary(vglm_model_4)
+
+AIC(vglm_model_3)
+AIC(vglm_model_4)
+
+#The AICs are basically the same, but model 4 (without age) is simpler so we'll keep that
+
+#Next, we'll test interaction between predictors in model_4.
+#Specifically, the sex of the individual with it:
+vglm_model_interaction <- vglm(num3 ~ sex * trestbps + sex * cp + sex * exang + sex * oldpeak + sex * thalach,
+                               family = cumulative(parallel = TRUE),
+                               data = data_set)
+
+summary(vglm_model_interaction)
+AIC(vglm_model_interaction)
+#The AIC is basically the same and the p-values disqualify them. So no interaction between sex and the other
+#variables.
+
+#Next we'll move onto how well the model fits and explains the data.
+
+#Chad Huntebrinker
+#Final Project
+library(readxl)
+library(VGAM)
+library(pROC)
+
+#First, load the dataset
+data_set <- read_excel("Heart_Disease_data.xlsx")
+
+#Data was pretty spread out, so we needed to break them down into 3 categories instead of 5.
+data_set$num3 <- cut(data_set$num,
+                     breaks = c(-1, 0, 2, 4),
+                     labels = c(0, 1, 2),
+                     ordered_result = TRUE)
+
+#Use the model we found last script
+vglm_final_model <- vglm(num3 ~ trestbps + sex + cp + exang + oldpeak + thalach,
+                     family = cumulative(parallel = TRUE),
+                     data = data_set)
+
+#And we will also try parallel = FALSE to cover our bases
+vglm_final_model_nonparallel <- vglm(num3 ~ trestbps + sex + cp + exang + oldpeak + thalach,
+                         family = cumulative(parallel = TRUE),
+                         data = data_set)
+summary(vglm_final_model)
+summary(vglm_final_model_nonparallel)
+
+#Since the non_parallel p_values are most all greater than 0.05, we will stick with parallel one.
+#Parallel = TRUE means that we’re assuming that the odds ratios are consistent across severity thresholds.
+
+AIC(vglm_final_model)
+#Now we will check how well the model fits to the data
+
+#First, let's check on some of the residuals
+#Calculate standardized residuals
+
+pred_prob <- predict(vglm_final_model, type = "response")
+
+#Define observed outcomes for each threshold
+threshold_1 <- data_set$num3 < 1  # "None" vs "Mild + Severe"
+threshold_2 <- data_set$num3 < 2  # "None + Mild" vs "Severe"
+
+#Calculate response residuals for each threshold
+residuals_threshold_1 <- threshold_1 - pred_prob[, 1]
+residuals_threshold_2 <- threshold_2 - pred_prob[, 2]
+
+#Standardized the residuals
+std_residuals_threshold_1 <- residuals_threshold_1 / sqrt(pred_prob[, 1] * (1 - pred_prob[, 1]))
+std_residuals_threshold_2 <- residuals_threshold_2 / sqrt(pred_prob[, 2] * (1 - pred_prob[, 2]))
+
+#Plot for threshold 1
+plot(std_residuals_threshold_1, 
+     main = "Standardized Residuals for Threshold 1 (None vs Mild + Severe)", 
+     ylab = "Standardized Residuals", 
+     xlab = "Data Index", 
+     pch = 16, col = "blue")
+abline(h = 0, col = "red")
+abline(h = c(-2, 2), col = "red", lty = 2)
+
+#Plot for threshold 2
+plot(std_residuals_threshold_2, 
+     main = "Standardized Residuals for Threshold 2 (None + Mild vs Severe)", 
+     ylab = "Standardized Residuals", 
+     xlab = "Data Index", 
+     pch = 16, col = "blue")
+abline(h = 0, col = "red")
+abline(h = c(-2, 2), col = "red", lty = 2)
+
+
+#Try to find a similarity between the outlie data points but unable to find it.
+outliers_SRT2 <- which(abs(std_residuals_threshold_2) > 2)
+outlier_data_set <- data_set[outliers_SRT2, ]
+
+
+#Let's check the ROC curve and the AUC
+
+#ROC for first threshold
+roc1 <- roc(threshold_1, pred_prob[, 1], plot = TRUE, col = "blue", 
+            main = "ROC Curves for Both Thresholds", lwd = 2)
+auc1 <- auc(roc1)
+
+#ROC for second threshold
+roc2 <- roc(threshold_2, pred_prob[, 2], plot = TRUE, col = "red", lwd = 2, add = TRUE)
+auc2 <- auc(roc2)
+
+#Add legend
+legend("bottomright", legend = c(paste("Threshold 1 (AUC =", round(auc1, 2), ")"), 
+                                 paste("Threshold 2 (AUC =", round(auc2, 2), ")")), 
+       col = c("blue", "red"), lwd = 2)
+```
+
